@@ -79,3 +79,23 @@ Everything else (`Header`, `Footer`, `ProductCard`, `ProductGrid`, `PromoBanner`
 - `@vercel/analytics` only mounts when `NODE_ENV === 'production'` (see `app/layout.tsx`).
 - The repo is linked to v0 (`https://v0.app/chat/projects/prj_X7UGePkFlLC33RuxWiTZySFDcSzO`); merges to `main` auto-deploy via Vercel. v0 may push commits directly. When deploying, set `VERCEL_PROTECTION_BYPASS_SECRET` in the Vercel project's environment variables.
 - The root layout is intentionally synchronous so it doesn't opt routes out of static. `pnpm build` should report `/` as `○` (Static), `/products/[param]` as `●` (SSG), and `/search` as `ƒ` (Dynamic). If you ever convert the layout to `async function` and `await` something that uses `cookies()`/`headers()`/`searchParams`, you will silently switch every route back to dynamic — verify the build output after layout changes.
+
+### Agent layer (shopping agent)
+
+- `lib/gateway.ts` — AI Gateway model factory. `getGatewayModel()` builds a `LanguageModel` via the official `@ai-sdk/gateway` provider (pinned `4.0.2` to match `ai@7.0.2`'s dependency train — keep them in lockstep or you get duplicate `@ai-sdk/provider` copies and type errors). Auth: `AI_GATEWAY_API_KEY` → project OIDC token (`getVercelOidcToken()` from `@vercel/oidc`; works locally because `vercel env pull` writes `VERCEL_OIDC_TOKEN`). Per-request construction — the OIDC token rotates in <1h.
+- `lib/agent.ts` — `getShoppingAgent()` returns a `ToolLoopAgent` with storefront instructions; exports `ShoppingUIMessage` (`InferAgentUIMessage<...>`) that both the route and the client use for typed tool parts.
+- `lib/tools.ts` — `shoppingTools`: `searchProducts`, `getAllCategories`, `getProductDetails`, `returnOrder` (zod-validated inputs; wrap `lib/api.ts` helpers; failures throw so the model sees honest tool errors).
+- `app/api/chat/route.ts` — `POST` validates the body with `safeValidateUIMessages` (400 on bad input), then returns `createAgentUIStreamResponse` with an `onError` that streams the real error message to the client.
+- `components/agent-chat.tsx` — client island: `useChat<ShoppingUIMessage>` + AI Elements (`Conversation`, `Message`, `PromptInput`, `Suggestion`). Text parts render via `MessageResponse` (Streamdown); tool parts render generative UI.
+- `components/agent-tool-parts.tsx` — generative UI per tool part (`AgentToolPart` dispatcher): product grid (reuses `ProductCard`), product detail card with stock badge, category chips, return confirmation card; pending/error states for each.
+- Default model `anthropic/claude-haiku-5.5`, override with `AGENT_MODEL`.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
