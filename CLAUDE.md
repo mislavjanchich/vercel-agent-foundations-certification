@@ -94,6 +94,16 @@ Everything else (`Header`, `Footer`, `ProductCard`, `ProductGrid`, `PromoBanner`
 - `components/agent-tool-parts.tsx` — generative UI per tool part (`AgentToolPart` dispatcher): product grid (reuses `ProductCard`), product detail card with stock badge, category chips, return-received confirmation card; pending/error states for each.
 - Default model `anthropic/claude-haiku-5.5`, override with `AGENT_MODEL` (local: `LOCAL_LLM_MODEL`).
 
+### Agent layer (store admin agent)
+
+- `lib/admin-tools.ts` — admin tool surface (`adminTools`): `getSupportTickets`, `getReturnsHistory`, `getInventoryStock`, `getSalesAnalytics` (back-office reads via `lib/api.ts` `getBackOffice*` helpers), catalog `searchProducts`/`getAllCategories` (re-exported from `lib/tools.ts`), and `bash` — executes `bash -lc` in the **persistent Vercel Sandbox**. Every `execute` is `"use step"`; errors return honest `{error}` values.
+- `lib/sandbox.ts` — `SANDBOX_NAME` (`swag-store-backoffice`) + `createOrGetSandbox()` (`Sandbox.getOrCreate` from `@vercel/sandbox@4`; memoized per process, idempotent on the API side) + `readMemories()` (reads `memories.md` from the sandbox). The SDK authenticates via the project OIDC token (works locally with `vercel env pull`) and resolves team/project from `.vercel/project.json`. Despite pulling in node builtins, it bundles fine inside the workflow — same trick as the gateway string model.
+- `lib/admin-agent.ts` — `createAdminWorkflowAgent(memories)` returns a `WorkflowAgent` with back-office instructions + the docs' **memory protocol** (append `memories.md` via bash; save reusable `scripts/<name>.py`); exports `AdminUIMessage`.
+- `lib/workflows/admin-chat-flow.ts` — `"use workflow"` durable admin loop; loads memory at run start and injects it into the agent instructions (so prior context shapes the first turn); `stopWhen: isStepCount(10)`.
+- `app/api/admin/chat/route.ts` + `[id]/stream/route.ts` — admin-only (proxy only guards `/admin/:path*`, so both routes check the `admin_auth` cookie themselves → 401), same `start`/transform/resume mechanics as the shopping chat.
+- `components/admin-agent-chat.tsx` — client: `WorkflowChatTransport` at `/api/admin/chat`, localStorage `admin-active-workflow-run-id` for refresh recovery, suggestions for back-office tasks; `components/admin-tool-parts.tsx` renders bash (running → exit code + stdout/stderr, failure state), tickets/returns/stock/sales tables, catalog grid.
+- Admin gate: login at `/admin/login` (`lib/admin-actions.ts`), cookie path `/admin`, demo-grade password `letmeinadminagent` in `lib/admin-auth.ts` (demo only — replace with opaque/signed tokens for real auth).
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
