@@ -1,74 +1,45 @@
 "use client";
 
 import type { ShoppingUIMessage } from "@/lib/agent";
-import { ProductCard } from "@/components/product-card";
 import { formatPrice } from "@/lib/format";
-import type { Category, StockInfo } from "@/lib/types";
+import type { StockInfo } from "@/lib/types";
 import {
-  AlertCircleIcon,
+  CatalogCategoriesView,
+  CatalogSearchView,
+  ToolError,
+} from "@/components/tool-parts";
+import {
   CheckCircle2Icon,
   PackageSearchIcon,
   RotateCcwIcon,
-  ShapesIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
 
 type UIMessagePart = ShoppingUIMessage["parts"][number];
 
-type SearchProductsPart = Extract<UIMessagePart, { type: "tool-searchProducts" }>;
 type GetProductDetailsPart = Extract<UIMessagePart, { type: "tool-getProductDetails" }>;
-type GetAllCategoriesPart = Extract<UIMessagePart, { type: "tool-getAllCategories" }>;
 type ReturnOrderPart = Extract<UIMessagePart, { type: "tool-returnOrder" }>;
 
 /**
  * Renders the generative UI for any tool part of the shopping agent.
  * Non-tool parts (text, step-start, …) render nothing — the chat handles those.
+ * Catalog tools (searchProducts, getAllCategories) reuse the shared views in
+ * `components/tool-parts.tsx` — the admin agent uses the same tool
+ * definitions, so the UI is shared too.
  */
 export function AgentToolPart({ part }: { part: UIMessagePart }) {
   switch (part.type) {
     case "tool-searchProducts":
-      return <SearchProductsPart part={part} />;
+      return <CatalogSearchView part={part} />;
     case "tool-getProductDetails":
       return <ProductDetailsPart part={part} />;
     case "tool-getAllCategories":
-      return <CategoriesPart part={part} />;
+      return <CatalogCategoriesView part={part} />;
     case "tool-returnOrder":
       return <ReturnOrderPart part={part} />;
     default:
       return null;
   }
-}
-
-function ToolStateShell({
-  icon,
-  label,
-  pending,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  pending: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-xs text-muted-foreground">
-      <span className={cn("text-muted-foreground", pending && "animate-pulse")}>
-        {icon}
-      </span>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function ToolError({ errorText }: { errorText: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-      <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0" />
-      <div className="flex flex-col gap-0.5">
-        <span className="font-medium">Something went wrong</span>
-        <span className="opacity-80">{errorText}</span>
-      </div>
-    </div>
-  );
 }
 
 function StockBadge({ stock }: { stock: StockInfo | null }) {
@@ -94,47 +65,14 @@ function StockBadge({ stock }: { stock: StockInfo | null }) {
   );
 }
 
-function SearchProductsPart({ part }: { part: SearchProductsPart }) {
-  if (part.state === "output-error") return <ToolError errorText={part.errorText} />;
-  if (part.state !== "output-available") {
-    return (
-      <ToolStateShell
-        icon={<PackageSearchIcon className="size-3.5" />}
-        label="Searching the catalog…"
-        pending
-      />
-    );
-  }
-
-  const products = part.output;
-  if (products.length === 0) {
-    return (
-      <ToolStateShell
-        icon={<PackageSearchIcon className="size-3.5" />}
-        label="No products matched that search."
-        pending={false}
-      />
-    );
-  }
-
-  return (
-    <div className="grid w-full grid-cols-2 gap-2">
-      {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
-      ))}
-    </div>
-  );
-}
-
 function ProductDetailsPart({ part }: { part: GetProductDetailsPart }) {
-  if (part.state === "output-error") return <ToolError errorText={part.errorText} />;
+  if (part.state === "output-error") return <ToolError message={part.errorText} />;
   if (part.state !== "output-available") {
     return (
-      <ToolStateShell
-        icon={<PackageSearchIcon className="size-3.5" />}
-        label="Fetching product details…"
-        pending
-      />
+      <div className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-xs text-muted-foreground">
+        <PackageSearchIcon className="size-3.5 animate-pulse" />
+        Fetching product details…
+      </div>
     );
   }
 
@@ -173,43 +111,14 @@ function ProductDetailsPart({ part }: { part: GetProductDetailsPart }) {
   );
 }
 
-function CategoriesPart({ part }: { part: GetAllCategoriesPart }) {
-  if (part.state === "output-error") return <ToolError errorText={part.errorText} />;
-  if (part.state !== "output-available") {
-    return (
-      <ToolStateShell
-        icon={<ShapesIcon className="size-3.5" />}
-        label="Loading categories…"
-        pending
-      />
-    );
-  }
-
-  const categories: Category[] = part.output;
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {categories.map((category) => (
-        <span
-          key={category.slug}
-          className="inline-flex items-center gap-1.5 rounded-full border bg-background/50 px-2.5 py-1 text-xs text-muted-foreground"
-        >
-          {category.name}
-          <span className="text-[10px] opacity-60">{category.productCount}</span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
 function ReturnOrderPart({ part }: { part: ReturnOrderPart }) {
-  if (part.state === "output-error") return <ToolError errorText={part.errorText} />;
+  if (part.state === "output-error") return <ToolError message={part.errorText} />;
   if (part.state !== "output-available") {
     return (
-      <ToolStateShell
-        icon={<RotateCcwIcon className="size-3.5" />}
-        label="Filing your return…"
-        pending
-      />
+      <div className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-xs text-muted-foreground">
+        <RotateCcwIcon className="size-3.5 animate-pulse" />
+        Filing your return…
+      </div>
     );
   }
 

@@ -1,6 +1,4 @@
-import { createModelCallToUIChunkTransform } from "@ai-sdk/workflow";
-import { createUIMessageStreamResponse } from "ai";
-import { getRun } from "workflow/api";
+import { parseStartIndex, resumeRunStreamResponse } from "@/lib/chat-routes";
 
 /**
  * GET /api/chat/[id]/stream
@@ -19,41 +17,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const parsed = parseStartIndex(request.url);
+  if (!parsed.ok) return parsed.response;
 
-  let startIndex = 0;
-  try {
-    const { searchParams } = new URL(request.url);
-    const startIndexParam = searchParams.get("startIndex");
-    startIndex = startIndexParam === null ? 0 : Number(startIndexParam);
-    if (!Number.isSafeInteger(startIndex) || startIndex < 0) {
-      return Response.json(
-        { error: "startIndex must be a non-negative safe integer" },
-        { status: 400 },
-      );
-    }
-  } catch {
-    return Response.json({ error: "Invalid request URL" }, { status: 400 });
-  }
-
-  let run;
-  try {
-    run = getRun(id);
-  } catch (error) {
-    console.error("[api/chat/[id]/stream]", error);
-    return Response.json({ error: "Run not found" }, { status: 404 });
-  }
-
-  const source = run.getReadable({ startIndex: 0 });
-  const tailIndex = await source.getTailIndex();
-  const readable = source.pipeThrough(
-    createModelCallToUIChunkTransform({ uiStartIndex: startIndex }),
-  );
-
-  return createUIMessageStreamResponse({
-    stream: readable,
-    headers: {
-      "x-workflow-run-id": id,
-      "x-workflow-stream-tail-index": String(tailIndex),
-    },
-  });
+  return resumeRunStreamResponse(id, parsed.startIndex);
 }

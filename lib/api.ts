@@ -239,7 +239,6 @@ export interface GetProductsParams {
 export async function getProducts(
   params: GetProductsParams = {},
 ): Promise<Product[]> {
-  console.log("[getProducts]", params);
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
@@ -264,7 +263,6 @@ export async function getProductById(idOrSlug: string): Promise<Product> {
 }
 
 export async function getCategories(): Promise<Category[]> {
-  console.log("[getCategories]");
   return request<Category[]>("/categories", {
     next: { revalidate: DEFAULT_REVALIDATE, tags: ["categories"] },
   });

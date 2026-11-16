@@ -27,19 +27,24 @@ function errorMessage(err: unknown): string {
   return err instanceof ApiRequestError ? err.message : "Unknown error";
 }
 
+// Date-range inputs are identical across the back-office tools: optional
+// ISO strings, with a documented default and vague-window guidance.
+const rangeFrom = z
+  .string()
+  .optional()
+  .describe(
+    `ISO 8601 datetime or YYYY-MM-DD. Defaults to 30 days before "to". If the user gives a vague window ("this month", "recently"), pick a sensible range, state it explicitly in your reply, and proceed.`,
+  );
+const rangeTo = z
+  .string()
+  .optional()
+  .describe(`ISO 8601 datetime or YYYY-MM-DD. Defaults to now.`);
+
 export const getSupportTickets = tool({
-  description: `List support tickets from the back office within a date range. Each ticket includes status, priority, category, assignee (staff username or null when unassigned), the related customer/order, and timestamps. Use this for triaging the support queue, spotting spikes in a category, checking workload by assignee, or auditing unresolved urgent tickets. History covers ~last 180 days. Summarize across the rows in your reply rather than dumping them; for more than ~10 rows of arithmetic, note that exact joins and aggregates are limited until a sandbox tool is added.`,
+  description: `List support tickets from the back office within a date range. Each ticket includes status, priority, category, assignee (staff username or null when unassigned), the related customer/order, and timestamps. Use this for triaging the support queue, spotting spikes in a category, checking workload by assignee, or auditing unresolved urgent tickets. History covers ~last 180 days. Summarize across the rows in your reply rather than dumping them; for more than ~10 rows of arithmetic, compute exact numbers with the bash tool instead.`,
   inputSchema: z.object({
-    from: z
-      .string()
-      .optional()
-      .describe(
-        `ISO 8601 datetime or YYYY-MM-DD. Defaults to 30 days before "to". If the user gives a vague window ("this month", "recently"), pick a sensible range, state it explicitly in your reply, and proceed.`,
-      ),
-    to: z
-      .string()
-      .optional()
-      .describe(`ISO 8601 datetime or YYYY-MM-DD. Defaults to now.`),
+    from: rangeFrom,
+    to: rangeTo,
     status: z.enum(["open", "pending", "resolved", "closed"]).optional(),
     priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
     category: z
@@ -90,18 +95,10 @@ export const getSupportTickets = tool({
 });
 
 export const getReturnsHistory = tool({
-  description: `List historical returns from the back office within a date range. Each entry includes the items returned, the decision (approved/rejected/needs_info), refund amount in cents (divide by 100 for dollar amounts in your reply), and a summary of the related order. Use this for return triage, refund auditing, or identifying products with high return volumes. History covers ~last 180 days. Summarize across the returned rows in your reply rather than dumping them; for more than ~10 rows of arithmetic, note that exact joins and aggregates are limited until a sandbox tool is added.`,
+  description: `List historical returns from the back office within a date range. Each entry includes the items returned, the decision (approved/rejected/needs_info), refund amount in cents (divide by 100 for dollar amounts in your reply), and a summary of the related order. Use this for return triage, refund auditing, or identifying products with high return volumes. History covers ~last 180 days. Summarize across the returned rows in your reply rather than dumping them; for more than ~10 rows of arithmetic, compute exact numbers with the bash tool instead.`,
   inputSchema: z.object({
-    from: z
-      .string()
-      .optional()
-      .describe(
-        `ISO 8601 datetime or YYYY-MM-DD. Defaults to 30 days before "to". If the user gives a vague window ("this month", "recently"), pick a sensible range, state it explicitly in your reply, and proceed.`,
-      ),
-    to: z
-      .string()
-      .optional()
-      .describe(`ISO 8601 datetime or YYYY-MM-DD. Defaults to now.`),
+    from: rangeFrom,
+    to: rangeTo,
     status: z.enum(["pending", "processing", "completed"]).optional(),
     decision: z.enum(["approved", "rejected", "needs_info"]).optional(),
     limit: z.number().int().min(1).max(500).optional(),
@@ -161,18 +158,10 @@ export const getInventoryStock = tool({
 });
 
 export const getSalesAnalytics = tool({
-  description: `Sales totals by product within a date range. Each row reports unitsSold, ordersCount, and revenue in cents (divide by 100 for dollar amounts in your reply). Results are sorted by unitsSold descending. Pair with getReturnsHistory to compute per-product return rates. Sales data covers ~last 180 days. Summarize across the rows in your reply rather than dumping them; for more than ~10 rows of arithmetic, note that exact joins and aggregates are limited until a sandbox tool is added.`,
+  description: `Sales totals by product within a date range. Each row reports unitsSold, ordersCount, and revenue in cents (divide by 100 for dollar amounts in your reply). Results are sorted by unitsSold descending. Pair with getReturnsHistory to compute per-product return rates. Sales data covers ~last 180 days. Summarize across the rows in your reply rather than dumping them; for more than ~10 rows of arithmetic, compute exact numbers with the bash tool instead.`,
   inputSchema: z.object({
-    from: z
-      .string()
-      .optional()
-      .describe(
-        `ISO 8601 datetime or YYYY-MM-DD. Defaults to 30 days before "to". If the user gives a vague window ("this month", "recently"), pick a sensible range, state it explicitly in your reply, and proceed.`,
-      ),
-    to: z
-      .string()
-      .optional()
-      .describe(`ISO 8601 datetime or YYYY-MM-DD. Defaults to now.`),
+    from: rangeFrom,
+    to: rangeTo,
     productId: z
       .string()
       .optional()
@@ -196,13 +185,20 @@ export const bash = tool({
   }),
   execute: async ({ command }) => {
     "use step";
-    const sandbox = await createOrGetSandbox();
-    const result = await sandbox.runCommand("bash", ["-lc", command]);
-    return {
-      stdout: await result.stdout(),
-      stderr: await result.stderr(),
-      exitCode: result.exitCode,
-    };
+    try {
+      const sandbox = await createOrGetSandbox();
+      const result = await sandbox.runCommand("bash", ["-lc", command]);
+      return {
+        stdout: await result.stdout(),
+        stderr: await result.stderr(),
+        exitCode: result.exitCode,
+      };
+    } catch (err) {
+      // Sandbox unavailable / command failed to start: surface it as a
+      // failed command so the UI shows the failure state instead of an
+      // unhandled tool error.
+      return { stdout: "", stderr: errorMessage(err), exitCode: 1 };
+    }
   },
 });
 

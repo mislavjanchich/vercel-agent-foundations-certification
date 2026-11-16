@@ -2,21 +2,24 @@
 
 import type { AdminUIMessage } from "@/lib/admin-agent";
 import { formatPrice } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import {
+  CatalogCategoriesView,
+  CatalogSearchView,
+  Panel,
+  ToolError,
+  ToolStateShell,
+} from "@/components/tool-parts";
 import type {
   ProductSalesRow,
   Return,
   StockEntry,
   SupportTicket,
 } from "@/lib/types";
-import { ProductCard } from "@/components/product-card";
+import { cn } from "@/lib/utils";
 import {
-  AlertCircleIcon,
   BoxesIcon,
   ChartColumnIcon,
-  PackageSearchIcon,
   RotateCcwIcon,
-  ShapesIcon,
   TerminalIcon,
   TicketIcon,
 } from "lucide-react";
@@ -27,12 +30,15 @@ type TicketsPart = Extract<AdminPart, { type: "tool-getSupportTickets" }>;
 type ReturnsPart = Extract<AdminPart, { type: "tool-getReturnsHistory" }>;
 type StockPart = Extract<AdminPart, { type: "tool-getInventoryStock" }>;
 type SalesPart = Extract<AdminPart, { type: "tool-getSalesAnalytics" }>;
-type SearchPart = Extract<AdminPart, { type: "tool-searchProducts" }>;
-type CategoriesPart = Extract<AdminPart, { type: "tool-getAllCategories" }>;
 
 /**
  * Renders the generative UI for any admin agent tool part. Non-tool parts
  * (text, step-start, …) render nothing — the chat handles those.
+ *
+ * Catalog tool parts (searchProducts, getAllCategories) reuse the shared
+ * views in `components/tool-parts.tsx` (same tool definitions as the
+ * shopping agent). The data tools return `{ error }` inside a successful
+ * output on failure, so each view checks for it before rendering.
  */
 export function AdminToolPart({ part }: { part: AdminPart }) {
   switch (part.type) {
@@ -47,66 +53,24 @@ export function AdminToolPart({ part }: { part: AdminPart }) {
     case "tool-getSalesAnalytics":
       return <SalesAnalyticsPart part={part} />;
     case "tool-searchProducts":
-      return <CatalogSearchPart part={part} />;
+      return <CatalogSearchView part={part} />;
     case "tool-getAllCategories":
-      return <CatalogCategoriesPart part={part} />;
+      return <CatalogCategoriesView part={part} />;
     default:
       return null;
   }
 }
 
-function ToolStateShell({
-  icon,
-  label,
-  pending,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  pending: boolean;
-}) {
+/** Back-office tool outputs carry an `error` string on failure. */
+function hasOutputError(
+  output: unknown,
+): output is { error: string; [key: string]: unknown } {
   return (
-    <div className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-xs text-muted-foreground">
-      <span className={cn("text-muted-foreground", pending && "animate-pulse")}>
-        {icon}
-      </span>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function ToolError({ message }: { message: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-      <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0" />
-      <div className="flex flex-col gap-0.5">
-        <span className="font-medium">Something went wrong</span>
-        <span className="opacity-80">{message}</span>
-      </div>
-    </div>
-  );
-}
-
-function Panel({
-  title,
-  count,
-  children,
-}: {
-  title: string;
-  count?: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="w-full overflow-hidden rounded-lg border bg-background/50">
-      <div className="flex items-center justify-between border-b px-3 py-2 text-xs font-medium text-muted-foreground">
-        <span>{title}</span>
-        {typeof count === "number" && (
-          <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
-            {count}
-          </span>
-        )}
-      </div>
-      <div className="overflow-x-auto">{children}</div>
-    </div>
+    typeof output === "object" &&
+    output !== null &&
+    "error" in output &&
+    typeof (output as { error: unknown }).error === "string" &&
+    (output as { error: string }).error.length > 0
   );
 }
 
@@ -184,6 +148,7 @@ function SupportTicketsPart({ part }: { part: TicketsPart }) {
       <ToolStateShell icon={<TicketIcon className="size-3.5" />} label="Loading support tickets…" pending />
     );
   }
+  if (hasOutputError(part.output)) return <ToolError message={part.output.error} />;
 
   const { tickets, count } = part.output;
   if (!tickets || tickets.length === 0) {
@@ -237,6 +202,7 @@ function ReturnsHistoryPart({ part }: { part: ReturnsPart }) {
       <ToolStateShell icon={<RotateCcwIcon className="size-3.5" />} label="Loading return history…" pending />
     );
   }
+  if (hasOutputError(part.output)) return <ToolError message={part.output.error} />;
 
   const { returns, count } = part.output;
   if (!returns || returns.length === 0) {
@@ -297,6 +263,7 @@ function InventoryStockPart({ part }: { part: StockPart }) {
       <ToolStateShell icon={<BoxesIcon className="size-3.5" />} label="Checking inventory…" pending />
     );
   }
+  if (hasOutputError(part.output)) return <ToolError message={part.output.error} />;
 
   const { stock, count } = part.output;
   if (!stock || stock.length === 0) {
@@ -354,6 +321,7 @@ function SalesAnalyticsPart({ part }: { part: SalesPart }) {
       <ToolStateShell icon={<ChartColumnIcon className="size-3.5" />} label="Crunching sales…" pending />
     );
   }
+  if (hasOutputError(part.output)) return <ToolError message={part.output.error} />;
 
   const { sales, count } = part.output;
   if (!sales || sales.length === 0) {
@@ -392,51 +360,5 @@ function SalesAnalyticsPart({ part }: { part: SalesPart }) {
         </tbody>
       </table>
     </Panel>
-  );
-}
-
-function CatalogSearchPart({ part }: { part: SearchPart }) {
-  if (part.state === "output-error") return <ToolError message={part.errorText} />;
-  if (part.state !== "output-available") {
-    return (
-      <ToolStateShell icon={<PackageSearchIcon className="size-3.5" />} label="Searching the catalog…" pending />
-    );
-  }
-
-  const products = part.output;
-  if (products.length === 0) {
-    return (
-      <ToolStateShell icon={<PackageSearchIcon className="size-3.5" />} label="No products matched." pending={false} />
-    );
-  }
-  return (
-    <div className="grid w-full grid-cols-2 gap-2">
-      {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
-      ))}
-    </div>
-  );
-}
-
-function CatalogCategoriesPart({ part }: { part: CategoriesPart }) {
-  if (part.state === "output-error") return <ToolError message={part.errorText} />;
-  if (part.state !== "output-available") {
-    return (
-      <ToolStateShell icon={<ShapesIcon className="size-3.5" />} label="Loading categories…" pending />
-    );
-  }
-
-  const categories = part.output;
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {categories.map((category) => (
-        <span
-          key={category.slug}
-          className="rounded-full bg-secondary px-2.5 py-1 text-[11px] text-muted-foreground"
-        >
-          {category.name} · {category.productCount}
-        </span>
-      ))}
-    </div>
   );
 }
