@@ -17,7 +17,7 @@ export async function loginAction(formData: FormData): Promise<void> {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     maxAge: COOKIE_MAX_AGE,
-    path: "/admin",
+    path: "/", // root path: the API routes (/api/admin/chat) must also receive this cookie
   });
   redirect("/admin");
 }
