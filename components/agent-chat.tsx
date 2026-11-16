@@ -1,6 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import { WorkflowChatTransport } from "@ai-sdk/workflow/client";
 import {
   Conversation,
   ConversationContent,
@@ -23,9 +24,8 @@ import {
 import { Suggestion } from "@/components/ai-elements/suggestion";
 import { AgentToolPart } from "@/components/agent-tool-parts";
 import type { ShoppingUIMessage } from "@/lib/agent";
-import { DefaultChatTransport } from "ai";
 import { Bot, LoaderIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 const SUGGESTIONS = [
   "What do you sell?",
@@ -34,15 +34,46 @@ const SUGGESTIONS = [
   "I need to return an order",
 ];
 
-const chatTransport = new DefaultChatTransport<ShoppingUIMessage>({
-  api: "/api/chat",
-});
+const WORKFLOW_RUN_ID_KEY = "active-workflow-run-id";
 
 export function AgentChat() {
   const [input, setInput] = useState("");
-  const { messages, sendMessage, status, error, stop, clearError } =
+
+  // On refresh, pick up an in-flight chat run so the response keeps
+  // streaming instead of starting over.
+  const activeRunId = useMemo(() => {
+    if (typeof window === "undefined") return undefined;
+    return localStorage.getItem(WORKFLOW_RUN_ID_KEY) ?? undefined;
+  }, []);
+
+  const transport = useMemo(
+    () =>
+      new WorkflowChatTransport<ShoppingUIMessage>({
+        api: "/api/chat",
+        onChatSendMessage: (response) => {
+          const runId = response.headers.get("x-workflow-run-id");
+          if (runId) localStorage.setItem(WORKFLOW_RUN_ID_KEY, runId);
+        },
+        onChatEnd: () => {
+          localStorage.removeItem(WORKFLOW_RUN_ID_KEY);
+        },
+        prepareReconnectToStreamRequest: (options) => {
+          const runId = localStorage.getItem(WORKFLOW_RUN_ID_KEY);
+          if (!runId) throw new Error("No active workflow run ID found");
+          const { api: _ignored, ...rest } = options;
+          return {
+            ...rest,
+            api: `/api/chat/${encodeURIComponent(runId)}/stream`,
+          };
+        },
+      }),
+    [],
+  );
+
+  const { messages, status, error, stop, clearError, sendMessage } =
     useChat<ShoppingUIMessage>({
-      transport: chatTransport,
+      resume: Boolean(activeRunId),
+      transport,
     });
 
   const busy = status === "submitted" || status === "streaming";

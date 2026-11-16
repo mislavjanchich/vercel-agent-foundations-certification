@@ -1,15 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
 import {
-  createReturn,
   getCategories,
   getOrder,
   getProductById,
   getProducts,
   getProductStock,
-  notifyReturnInProcess,
-  preauthorizeRefund,
 } from "@/lib/api";
+import { returnFlow, type ReturnFlowItem } from "@/lib/workflows/return-flow";
+import { start } from "workflow/api";
 
 /**
  * Tools for the storefront shopping agent.
@@ -20,6 +19,13 @@ import {
  *    and fed back to the model),
  *  - failures throw; the AI SDK surfaces them to the model as tool errors so
  *    the agent can answer honestly instead of hallucinating a result.
+ *
+ * Each `execute` is marked `"use step"` so that, inside the durable chat
+ * workflow (`lib/workflows/chat-flow.ts`), the tool call runs as its own
+ * retryable, cached workflow step. `returnOrder` additionally starts the
+ * background `returnFlow` child workflow and returns immediately, so the
+ * shopper's request is confirmed without blocking the agent on slow or
+ * fail-prone store calls.
  */
 export const shoppingTools = {
   searchProducts: tool({
@@ -45,19 +51,24 @@ export const shoppingTools = {
         .optional()
         .describe("How many products to return (default 8)"),
     }),
-    execute: async ({ query, category, limit }) =>
-      getProducts({
+    execute: async ({ query, category, limit }) => {
+      "use step";
+      return getProducts({
         search: query,
         category,
         limit: limit ?? 8,
-      }),
+      });
+    },
   }),
 
   getAllCategories: tool({
     description:
       "List every product category in the store with its slug and product count. Use when a shopper wants to browse, or to look up valid category slugs before calling searchProducts.",
     inputSchema: z.object({}),
-    execute: async () => getCategories(),
+    execute: async () => {
+      "use step";
+      return getCategories();
+    },
   }),
 
   getProductDetails: tool({
@@ -74,6 +85,7 @@ export const shoppingTools = {
         .describe("Include live stock information (default true)"),
     }),
     execute: async ({ idOrSlug, includeStock = true }) => {
+      "use step";
       const product = await getProductById(idOrSlug);
       if (!includeStock) return { ...product, stock: null };
       // Stock is best-effort: a stock outage shouldn't hide the product.
@@ -84,9 +96,9 @@ export const shoppingTools = {
 
   returnOrder: tool({
     description:
-      "File a return for a shopper's order. Validates the items against the order, creates the return, notifies the shopper that it is being processed, and pre-authorizes the refund. Confirm the order id, which items, and the reason with the shopper before calling this.",
+      "File a return for a shopper's order. Validates the order, starts a durable background return workflow (notify → pre-authorize refund → file), and confirms the request immediately. Ask for the order id and reason if the shopper hasn't given them. Example order ids: 11111, 22222, 33333.",
     inputSchema: z.object({
-      orderId: z.string().min(1).describe("The order id, e.g. 'ord_123'"),
+      orderId: z.string().min(1).describe("The order id, e.g. '11111'"),
       reason: z
         .string()
         .min(1)
@@ -104,17 +116,18 @@ export const shoppingTools = {
         .describe("Items to return; omit to return every item in the order"),
     }),
     execute: async ({ orderId, reason, items }) => {
+      "use step";
+      // Fetch and validate before starting the workflow, so the model can
+      // correct itself instead of surfacing an API error mid-run.
       const order = await getOrder(orderId);
 
-      const returnItems =
+      const returnItems: ReturnFlowItem[] =
         items ??
         order.items.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
         }));
 
-      // Validate requested items against the order before creating anything,
-      // so the model can correct itself instead of surfacing an API 400.
       for (const item of returnItems) {
         const ordered = order.items.find(
           (candidate) => candidate.productId === item.productId,
@@ -133,15 +146,19 @@ export const shoppingTools = {
         }
       }
 
-      const createdReturn = await createReturn({
+      // Fire-and-forget: start() returns the run id immediately and the
+      // return continues in the background.
+      const run = await start(returnFlow, [
         orderId,
-        items: returnItems,
         reason,
-      });
-      await notifyReturnInProcess(orderId);
-      const refundPreauthorization = await preauthorizeRefund(orderId);
+        returnItems,
+      ]);
 
-      return { order, returnRequest: createdReturn, refundPreauthorization };
+      return {
+        runId: run.runId,
+        orderId,
+        message: `Return request received for order ${orderId}. We've started processing it and will keep you updated.`,
+      };
     },
   }),
 };

@@ -3,7 +3,7 @@
 import type { ShoppingUIMessage } from "@/lib/agent";
 import { ProductCard } from "@/components/product-card";
 import { formatPrice } from "@/lib/format";
-import type { Category, Order, RefundPreauthorization, Return, StockInfo } from "@/lib/types";
+import type { Category, StockInfo } from "@/lib/types";
 import {
   AlertCircleIcon,
   CheckCircle2Icon,
@@ -213,40 +213,31 @@ function ReturnOrderPart({ part }: { part: ReturnOrderPart }) {
     );
   }
 
-  const { order, returnRequest, refundPreauthorization } = part.output satisfies {
-    order: Order;
-    returnRequest: Return;
-    refundPreauthorization: RefundPreauthorization;
+  const output = part.output satisfies {
+    runId: string;
+    orderId: string;
+    message: string;
   };
 
   return (
     <div className="w-full rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
         <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />
-        Return filed for order {returnRequest.orderId}
+        Return request received
       </div>
+      <p className="mt-1 text-xs text-muted-foreground">{output.message}</p>
       <dl className="mt-2 flex flex-col gap-1 text-xs text-muted-foreground">
         <div className="flex justify-between gap-2">
+          <dt>Order</dt>
+          <dd className="font-mono">{output.orderId}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt>Request id</dt>
+          <dd className="font-mono">{output.runId}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
           <dt>Status</dt>
-          <dd className="font-medium text-foreground capitalize">{returnRequest.status}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt>Items</dt>
-          <dd className="font-mono">
-            {returnRequest.items
-              .map((item) => `${item.quantity} × ${item.productId}`)
-              .join(", ")}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt>Order total</dt>
-          <dd>{formatPrice(order.total, order.currency)}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt>Refund pre-authorized</dt>
-          <dd className="font-medium text-foreground">
-            {formatPrice(refundPreauthorization.amount, refundPreauthorization.currency)}
-          </dd>
+          <dd>Processing in the background — you&apos;ll be notified when it completes.</dd>
         </div>
       </dl>
     </div>
