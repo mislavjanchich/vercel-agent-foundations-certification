@@ -13,9 +13,10 @@ export function AgentButton() {
       onClick={toggleSidebar}
       aria-label="Toggle agent panel"
       aria-expanded={isOpen}
-      className="text-muted-foreground transition-colors hover:text-foreground"
+      className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
-      <Bot className="h-5 w-5" />
+      <Bot className="h-4 w-4" />
+      <span className="hidden sm:inline">Ask AI</span>
     </button>
   )
 }

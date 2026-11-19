@@ -1,4 +1,5 @@
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { AgentLauncher } from "@/components/agent-launcher";
 import { AgentPanelSync } from "@/components/agent-panel-sync";
 import { CartProvider } from "@/components/cart-provider";
 import { CartSheet } from "@/components/cart-sheet";
@@ -21,6 +22,7 @@ export default function StoreLayout({
           <Footer />
         </div>
         <AgentSidebar />
+        <AgentLauncher />
         <AgentPanelSync />
       </SidebarProvider>
       <CartSheet />

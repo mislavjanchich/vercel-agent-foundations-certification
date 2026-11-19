@@ -2,7 +2,7 @@
 
 A Next.js storefront with **two AI agents** built for the Vercel Agent Foundations Certification:
 
-1. **Shopping agent** — a customer-facing assistant (chat opens from the robot button in the header) that searches the catalog, explains products, and processes order returns.
+1. **Shopping agent** — a customer-facing assistant (chat opens from the "Ask AI" header button, the floating "Ask AI" bubble, or the homepage CTA) that searches the catalog, explains products, and processes order returns.
 2. **Store admin agent** — a password-protected back-office assistant at `/admin` (login: `letmeinadminagent`) with read-only store insights, a sandboxed bash tool, and persistent memory.
 
 The storefront brand is **Ship It Shop**; it's backed by the live **Vercel Swag Store API** — there is no local product or cart database. Both agents run on the **AI SDK 7** with **durable Vercel Workflows**, so long chats survive server restarts and duplicate side effects (e.g. return notifications) are impossible.

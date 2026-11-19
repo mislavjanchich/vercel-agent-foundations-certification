@@ -1,6 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Bot } from "lucide-react"
 import { ProductGrid } from "@/components/product-grid"
 import { CategoryShowcase } from "@/components/category-showcase"
 import { PromoBanner } from "@/components/promo-banner"
@@ -37,13 +37,22 @@ async function FeaturedProducts() {
               Premium merchandise for developers who ship fast. High-quality
               apparel and accessories for the modern web.
             </p>
-            <Link
-              href="/search"
-              className="mt-8 inline-flex items-center gap-2 rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background transition-opacity hover:opacity-80"
-            >
-              Shop All Products
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
+              <Link
+                href="/search"
+                className="inline-flex items-center gap-2 rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background transition-opacity hover:opacity-80"
+              >
+                Shop All Products
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/?chat=open"
+                className="inline-flex items-center gap-2 rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                <Bot className="h-4 w-4" />
+                Chat with our AI assistant
+              </Link>
+            </div>
           </div>
 
           {hero && hero.images[0] && (
