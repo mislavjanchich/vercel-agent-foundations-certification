@@ -69,6 +69,8 @@ Classic App Router (Cache Components / `'use cache'` are intentionally **not** u
 Client components are kept minimal — only where state, effects, or browser APIs are required:
 - `cart-provider.tsx`, `cart-button.tsx`, `cart-sheet.tsx` (cart state + UI)
 - `app/products/[param]/product-purchase.tsx` (stock polling, qty, add-to-cart)
+- `components/ask-about-product.tsx` (opens the agent panel + drafts a question about the current product)
+- `components/agent-launcher.tsx` (floating "Ask AI" bubble that opens the agent panel)
 - `app/search/search-form.tsx` (input state + URL sync)
 
 Everything else (`Header`, `Footer`, `ProductCard`, `ProductGrid`, `PromoBanner`, `CategoryShowcase`, `RelatedProducts`, every page) is a Server Component.

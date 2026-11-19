@@ -5,6 +5,7 @@ import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { ApiRequestError, getProductById, getProducts } from "@/lib/api"
 import { formatPrice } from "@/lib/format"
+import { AskAboutProduct } from "@/components/ask-about-product"
 import { ProductPurchase } from "./product-purchase"
 import { RelatedProducts } from "./related-products"
 
@@ -98,6 +99,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <p className="mt-6 leading-relaxed text-muted-foreground">
             {product.description}
           </p>
+
+          <AskAboutProduct productName={product.name} />
 
           <ProductPurchase product={product} />
         </div>

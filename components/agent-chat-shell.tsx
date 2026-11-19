@@ -23,7 +23,13 @@ import {
   type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input";
 import { Suggestion } from "@/components/ai-elements/suggestion";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+/**
+ * sessionStorage key for the "Ask about this product" draft. Written by
+ * `AskAboutProduct`, consumed + cleared once by the chat shell on mount.
+ */
+export const AGENT_ASK_DRAFT_KEY = "agent:ask-draft";
 
 /**
  * Shared chat client for both agents (shopping + admin).
@@ -100,6 +106,24 @@ export function AgentChatShell<T extends UIMessage = UIMessage>({
     });
 
   const busy = status === "submitted" || status === "streaming";
+
+  // Pick up an "Ask about this product" draft: either a sessionStorage draft
+  // left by the product page button (panel was closed, shell unmounted) or a
+  // live `agent:ask` event (shell already mounted). Draft only — never sent.
+  useEffect(() => {
+    const draft = sessionStorage.getItem(AGENT_ASK_DRAFT_KEY);
+    if (draft) {
+      sessionStorage.removeItem(AGENT_ASK_DRAFT_KEY);
+      setInput(draft);
+    }
+    const onAsk = (event: Event) => {
+      const message = (event as CustomEvent<{ message?: string }>).detail
+        ?.message;
+      if (message) setInput(message);
+    };
+    window.addEventListener("agent:ask", onAsk);
+    return () => window.removeEventListener("agent:ask", onAsk);
+  }, []);
 
   const handleSubmit = (message: PromptInputMessage) => {
     const text = message.text.trim();
