@@ -23,7 +23,7 @@ import {
   type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input";
 import { Suggestion } from "@/components/ai-elements/suggestion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * sessionStorage key for the "Ask about this product" draft. Written by
@@ -107,19 +107,49 @@ export function AgentChatShell<T extends UIMessage = UIMessage>({
 
   const busy = status === "submitted" || status === "streaming";
 
-  // Pick up an "Ask about this product" draft: either a sessionStorage draft
+  // Pick up an "Ask about this product" message: a sessionStorage payload
   // left by the product page button (panel was closed, shell unmounted) or a
-  // live `agent:ask` event (shell already mounted). Draft only — never sent.
+  // live `agent:ask` event (shell already mounted). Auto-sends straight to
+  // the agent; if the agent is already busy, it lands as a draft instead.
+  const latest = useRef({ busy, sendMessage });
+  latest.current = { busy, sendMessage };
   useEffect(() => {
-    const draft = sessionStorage.getItem(AGENT_ASK_DRAFT_KEY);
-    if (draft) {
+    const consumeAsk = ({
+      text,
+      autoSend,
+    }: {
+      text: string;
+      autoSend?: boolean;
+    }) => {
+      if (autoSend && !latest.current.busy) {
+        setInput("");
+        latest.current.sendMessage({ text });
+      } else {
+        setInput(text);
+      }
+    };
+    const raw = sessionStorage.getItem(AGENT_ASK_DRAFT_KEY);
+    if (raw) {
       sessionStorage.removeItem(AGENT_ASK_DRAFT_KEY);
-      setInput(draft);
+      try {
+        const parsed = JSON.parse(raw) as {
+          text?: string;
+          autoSend?: boolean;
+        };
+        if (parsed.text) {
+          consumeAsk({ text: parsed.text, autoSend: parsed.autoSend });
+        }
+      } catch {
+        // malformed payload — drop it
+      }
     }
     const onAsk = (event: Event) => {
-      const message = (event as CustomEvent<{ message?: string }>).detail
-        ?.message;
-      if (message) setInput(message);
+      const detail = (
+        event as CustomEvent<{ message?: string; autoSend?: boolean }>
+      ).detail;
+      if (detail?.message) {
+        consumeAsk({ text: detail.message, autoSend: detail.autoSend });
+      }
     };
     window.addEventListener("agent:ask", onAsk);
     return () => window.removeEventListener("agent:ask", onAsk);

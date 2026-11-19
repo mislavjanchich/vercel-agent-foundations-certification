@@ -100,7 +100,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {product.description}
           </p>
 
-          <AskAboutProduct productName={product.name} />
+          <AskAboutProduct productName={product.name} productId={product.id} />
 
           <ProductPurchase product={product} />
         </div>

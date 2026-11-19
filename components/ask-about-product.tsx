@@ -8,28 +8,33 @@ import { AGENT_ASK_DRAFT_KEY } from "@/components/agent-chat-shell";
  * "Ask about this product" button on product detail pages.
  *
  * Opens the agent panel (same panel as the header button / floating
- * launcher) and pre-fills the chat input with a draft question about the
- * product. The draft is stored in sessionStorage so it also reaches the
- * chat when the sidebar is closed (its content may be unmounted); the chat
- * shell consumes + clears it. Nothing is auto-sent — the user reviews and
- * hits send, so no surprise model calls.
+ * launcher) and immediately sends a question about the product to the
+ * agent. The message is carried to the chat shell via sessionStorage (cold
+ * path — panel was closed) and a live `agent:ask` event (warm path — shell
+ * already mounted). If the agent is already busy, the question is staged
+ * as a draft instead of being dropped.
  */
-export function AskAboutProduct({ productName }: { productName: string }) {
+export function AskAboutProduct({
+  productName,
+  productId,
+}: {
+  productName: string;
+  productId: string;
+}) {
   const { setOpen, setOpenMobile } = useSidebar();
 
   const handleClick = () => {
     setOpen(true);
     setOpenMobile(true);
+    const message = `Can you tell me about product ${productId} (${productName})? Materials, fit/sizing, and current stock.`;
     sessionStorage.setItem(
       AGENT_ASK_DRAFT_KEY,
-      `Tell me about the ${productName} — materials, fit/sizing, and current stock.`,
+      JSON.stringify({ text: message, autoSend: true }),
     );
     // Live path for when the chat shell is already mounted.
     window.dispatchEvent(
       new CustomEvent("agent:ask", {
-        detail: {
-          message: `Tell me about the ${productName} — materials, fit/sizing, and current stock.`,
-        },
+        detail: { message, autoSend: true },
       }),
     );
   };
