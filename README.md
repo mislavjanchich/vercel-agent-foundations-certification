@@ -38,7 +38,7 @@ Open [http://localhost:3000](http://localhost:3000). The storefront only needs `
 | `LOCAL_LLM_BASE_URL` | No (dev) | OpenAI-compatible local model server (e.g. `http://localhost:11434/v1`). Bypasses the gateway. **Never set in the Vercel project environment.** |
 | `LOCAL_LLM_MODEL` | No (dev) | Local model id (e.g. `lfm2.5:latest`). |
 | `LOCAL_LLM_API_KEY` | No (dev) | Optional; most local servers ignore it. |
-| `AGENT_MODEL` | No | Override the gateway model id (default `anthropic/claude-haiku-5.5`). |
+| `AGENT_MODEL` | No | Override the gateway model id. Code default `anthropic/claude-haiku-5.5` (paid tier); this project sets `openai/gpt-4.1-mini` (free tier, verified tool-calling). |
 | `ADMIN_PASSWORD` | No | Admin agent password. Defaults to the demo `letmeinadminagent`. Override only if needed. |
 | `VERCEL_OIDC_TOKEN` | No (local) | Project OIDC token (`vercel env pull`) used by the Sandbox SDK outside Vercel. |
 | `NEXT_PUBLIC_SITE_URL` | No | Public site URL for metadata. Defaults to `http://localhost:3000`. |
